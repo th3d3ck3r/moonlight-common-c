@@ -1323,9 +1323,13 @@ static void queueAsyncCallback(PML_CONTROL_STREAM_CONTEXT ctx, PNVCTL_ENET_PACKE
     }
 }
 
-static void handleClipboardPacket(PML_CONTROL_STREAM_CONTEXT ctx,
-                                  PNVCTL_ENET_PACKET_HEADER_V1 ctlHdr,
-                                  int packetLength) {
+void processClipboardPacketCtx(PML_CONTROL_STREAM_CONTEXT ctx,
+                               const void* packet, int packetLength) {
+    if (ctx == NULL || ctx->connectionContext == NULL || packet == NULL ||
+            packetLength < (int)sizeof(NVCTL_ENET_PACKET_HEADER_V1)) {
+        return;
+    }
+    const NVCTL_ENET_PACKET_HEADER_V1* ctlHdr = packet;
     BYTE_BUFFER bb;
     uint8_t kind;
 
@@ -1389,7 +1393,7 @@ static void handleClipboardPacket(PML_CONTROL_STREAM_CONTEXT ctx,
         }
 
         if (totalLength != 0) {
-            data = malloc(totalLength);
+            data = calloc(totalLength, 1);
             if (data == NULL) {
                 Limelog("Clipboard ITEM_START failed to allocate %u bytes\n",
                         totalLength);
@@ -1439,9 +1443,13 @@ static void handleClipboardPacket(PML_CONTROL_STREAM_CONTEXT ctx,
             return;
         }
 
-        if (chunkOffset > ctx->incomingClipboardTransfer.totalLength ||
+        // Clipboard control messages use the reliable, ordered channel. Only
+        // contiguous chunks may advance completion; a high-water mark alone
+        // would allow a missing prefix to reach the application callback.
+        if (chunkOffset != ctx->incomingClipboardTransfer.receivedLength ||
+                chunkOffset > ctx->incomingClipboardTransfer.totalLength ||
                 chunkLength > ctx->incomingClipboardTransfer.totalLength - chunkOffset) {
-            Limelog("Clipboard ITEM_CHUNK outside bounds: offset=%u length=%u total=%u\n",
+            Limelog("Clipboard ITEM_CHUNK noncontiguous or outside bounds: offset=%u length=%u total=%u\n",
                     chunkOffset, chunkLength, ctx->incomingClipboardTransfer.totalLength);
             freeIncomingClipboardTransfer(ctx);
             return;
@@ -1804,7 +1812,7 @@ static void controlReceiveThreadFunc(void* context) {
                 return;
             }
             else if (ctlHdr->type == ctx->packetTypes[IDX_CLIPBOARD]) {
-                handleClipboardPacket(ctx, ctlHdr, packetLength);
+                processClipboardPacketCtx(ctx, ctlHdr, packetLength);
             }
 
             free(ctlHdr);

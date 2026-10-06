@@ -315,6 +315,7 @@ int initializeControlStreamCtx(PML_CONTROL_STREAM_CONTEXT ctx, PML_CONNECTION_CO
 int startControlStreamCtx(PML_CONTROL_STREAM_CONTEXT ctx);
 int stopControlStreamCtx(PML_CONTROL_STREAM_CONTEXT ctx);
 void destroyControlStreamCtx(PML_CONTROL_STREAM_CONTEXT ctx);
+void processClipboardPacketCtx(PML_CONTROL_STREAM_CONTEXT ctx, const void* packet, int packetLength);
 int LiBindClipboardSessionCtx(PML_CONTROL_STREAM_CONTEXT ctx);
 int LiUnbindClipboardSessionCtx(PML_CONTROL_STREAM_CONTEXT ctx);
 int LiRequestClipboardSnapshotCtx(PML_CONTROL_STREAM_CONTEXT ctx);

@@ -1,9 +1,11 @@
-#include <assert.h>
 #include <string.h>
 #include <stdio.h>
 #include "Limelight-internal.h"
 #include "Input.h"
 #include <rs.h>
+// Platform.h sets NDEBUG for production code; keep test assertions active.
+#undef NDEBUG
+#include <assert.h>
 
 static void testFec(int data, int parity, bool audio) {
     enum { SIZE = 1024, MAX_SHARDS = 12 };

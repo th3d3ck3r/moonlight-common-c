@@ -1,6 +1,8 @@
-#include <assert.h>
 #include <stdint.h>
 #include "Rtsp.h"
+// Platform.h sets NDEBUG for production code; keep test assertions active.
+#undef NDEBUG
+#include <assert.h>
 
 static int parse(const char* input, int length) {
     RTSP_MESSAGE message = {0};
