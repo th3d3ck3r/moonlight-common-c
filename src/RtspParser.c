@@ -53,6 +53,9 @@ static int getMessageLength(PRTSP_MESSAGE msg) {
 
 // Given an RTSP message string rtspMessage, parse it into an RTSP_MESSAGE struct msg
 int parseRtspMessage(PRTSP_MESSAGE msg, char* rtspMessage, int length) {
+    if (msg == NULL || rtspMessage == NULL || length <= 0) {
+        return RTSP_ERROR_MALFORMED;
+    }
     char* token;
     char* protocol;
     char* endCheck;
@@ -79,7 +82,7 @@ int parseRtspMessage(PRTSP_MESSAGE msg, char* rtspMessage, int length) {
     char typeFlag = TOKEN_OPTION;
 
     // Put the raw message into a string we can use
-    char* messageBuffer = malloc(length + 1);
+    char* messageBuffer = malloc((size_t)length + 1);
     if (messageBuffer == NULL) {
         exitCode = RTSP_ERROR_NO_MEMORY;
         goto ExitFailure;
@@ -167,7 +170,14 @@ int parseRtspMessage(PRTSP_MESSAGE msg, char* rtspMessage, int length) {
 
                 // Check if we're at the end of the message portion marked by \r\n\r\n
                 // endCheck points to the remainder of messageBuffer after the token
-                endCheck = &token[0] + strlen(token) + 1;
+                size_t tokenEnd = (size_t)(token - messageBuffer) + strlen(token);
+                if (tokenEnd >= (size_t)length) {
+                    // strtok_r() can terminate a truncated header at our added
+                    // NUL rather than at a CRLF. There is no remainder to read.
+                    exitCode = RTSP_ERROR_MALFORMED;
+                    goto ExitFailure;
+                }
+                endCheck = &messageBuffer[tokenEnd + 1];
 
                 // See if we've hit the end of the message. The first \r is missing because it's been tokenized
                 if (startsWith(endCheck, "\n") && endCheck[1] == '\0') {
