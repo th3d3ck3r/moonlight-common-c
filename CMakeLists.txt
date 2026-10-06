@@ -87,3 +87,15 @@ target_include_directories(moonlight-common-c SYSTEM PRIVATE
 )
 
 target_compile_definitions(moonlight-common-c PRIVATE HAS_SOCKLEN_T)
+
+include(CTest)
+if(BUILD_TESTING)
+  add_executable(common-integration-tests tests/integration.c)
+  target_include_directories(common-integration-tests PRIVATE nanors nanors/deps/obl enet/include)
+  target_link_libraries(common-integration-tests PRIVATE moonlight-common-c)
+  # Keep assertions enabled even when testing a Release library.
+  if(NOT MSVC)
+    target_compile_options(common-integration-tests PRIVATE -UNDEBUG)
+  endif()
+  add_test(NAME common-integration COMMAND common-integration-tests)
+endif()
