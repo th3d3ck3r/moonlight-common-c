@@ -1,5 +1,5 @@
 #include "Limelight-internal.h"
-#include "rs.h"
+#include <rs.h>
 
 #ifdef StreamConfig
 #undef StreamConfig
@@ -108,7 +108,7 @@ static void removeEntryFromList(PRTPV_QUEUE_LIST list, PRTPV_QUEUE_ENTRY entry) 
 
 static void reportFinalFrameFecStatus(PRTP_VIDEO_QUEUE queue) {
     SS_FRAME_FEC_STATUS fecStatus;
-    
+
     fecStatus.frameIndex = BE32(queue->currentFrameNumber);
     fecStatus.highestReceivedSequenceNumber = BE16(queue->receivedHighestSequenceNumber);
     fecStatus.nextContiguousSequenceNumber = BE16(queue->nextContiguousSequenceNumber);
@@ -128,7 +128,7 @@ static void reportFinalFrameFecStatus(PRTP_VIDEO_QUEUE queue) {
 static bool queuePacket(PRTP_VIDEO_QUEUE queue, PRTPV_QUEUE_ENTRY newEntry, PRTP_PACKET packet, int length, bool isParity, bool isFecRecovery) {
     PRTPV_QUEUE_ENTRY entry;
     bool outOfSequence;
-    
+
     LC_ASSERT(!(isFecRecovery && isParity));
     LC_ASSERT(!isBefore16(packet->sequenceNumber, queue->nextContiguousSequenceNumber));
 
@@ -212,7 +212,7 @@ static int reconstructFrame(PRTP_VIDEO_QUEUE queue) {
     int ret;
 
     LC_ASSERT(totalPackets == U16(queue->bufferHighestSequenceNumber - queue->bufferLowestSequenceNumber) + 1U);
-    
+
 #ifdef FEC_VALIDATION_MODE
     // We'll need an extra packet to run in FEC validation mode, because we will
     // be "dropping" one below and recovering it using parity. However, some frames
@@ -227,7 +227,7 @@ static int reconstructFrame(PRTP_VIDEO_QUEUE queue) {
         // based on the packets we've received (or not) so far. If the number of missing shards exceeds the total
         // needed shards, there is no hope of recovering the data. The only way we could recover this frame is by
         // receiving OOS data, which is unlikely because we've not seen any recently from this host.
-        if (!queue->reportedLostFrame && !queue->receivedOosData) {
+        if (isReferenceFrameInvalidationEnabled() && !queue->reportedLostFrame && !queue->receivedOosData) {
             // NB: We use totalPackets - neededPackets instead of just bufferParityPackets here because we require
             // one extra parity shard for recovery if we're in FEC validation mode.
             if (queue->missingPackets > totalPackets - neededPackets) {
@@ -280,9 +280,9 @@ static int reconstructFrame(PRTP_VIDEO_QUEUE queue) {
         ret = -2;
         goto cleanup;
     }
-    
+
     rs = reed_solomon_new(queue->bufferDataPackets, queue->bufferParityPackets);
-    
+
     // This could happen in an OOM condition, but it could also mean the FEC data
     // that we fed to reed_solomon_new() is bogus, so we'll assert to get a better look.
     LC_ASSERT(rs != NULL);
@@ -290,9 +290,9 @@ static int reconstructFrame(PRTP_VIDEO_QUEUE queue) {
         ret = -3;
         goto cleanup;
     }
-    
+
     memset(marks, 1, sizeof(char) * (totalPackets));
-    
+
     int receiveSize = StreamConfig.packetSize + MAX_RTP_HEADER_SIZE;
     int packetBufferSize = receiveSize + sizeof(RTPV_QUEUE_ENTRY);
 
@@ -324,7 +324,7 @@ static int reconstructFrame(PRTP_VIDEO_QUEUE queue) {
 
         packets[index] = (unsigned char*) entry->packet;
         marks[index] = 0;
-        
+
         //Set padding to zero
         if (entry->length < receiveSize) {
             memset(&packets[index][entry->length], 0, receiveSize - entry->length);
@@ -343,9 +343,9 @@ static int reconstructFrame(PRTP_VIDEO_QUEUE queue) {
             }
         }
     }
-    
+
     ret = reed_solomon_reconstruct(rs, packets, marks, totalPackets, receiveSize);
-    
+
     // We should always provide enough parity to recover the missing data successfully.
     // If this fails, something is probably wrong with our FEC state.
     LC_ASSERT(ret == 0);
@@ -356,7 +356,7 @@ static int reconstructFrame(PRTP_VIDEO_QUEUE queue) {
                 queue->bufferDataPackets - queue->receivedDataPackets,
                 queue->currentFrameNumber);
 #endif
-        
+
         // Report the final FEC status if we needed to perform a recovery
         reportFinalFrameFecStatus(queue);
     }
@@ -372,7 +372,7 @@ cleanup_packets:
                 rtpPacket->header = queue->pendingFecBlockList.head->packet->header;
                 rtpPacket->timestamp = queue->pendingFecBlockList.head->packet->timestamp;
                 rtpPacket->ssrc = queue->pendingFecBlockList.head->packet->ssrc;
-                
+
                 int dataOffset = sizeof(*rtpPacket);
                 if (rtpPacket->header & FLAG_EXTENSION) {
                     dataOffset += 4; // 2 additional fields
@@ -474,7 +474,7 @@ cleanup:
 
     if (marks != NULL)
         free(marks);
-    
+
     return ret;
 }
 
@@ -632,11 +632,13 @@ int RtpvAddPacket(PRTP_VIDEO_QUEUE queue, PRTP_PACKET packet, int length, PRTPV_
                     // Notify the host of the loss of this frame
                     if (!queue->reportedLostFrame) {
                         notifyFrameLostCtx(queue->depacketizerContext, queue->currentFrameNumber, false);
-                        queue->reportedLostFrame = true;
                     }
 
+                    // NB: We reset reportedLostFrame here because we don't want to suppress
+                    // the reporting of the _next_ frame if it's lost.
                     queue->currentFrameNumber++;
                     queue->multiFecCurrentBlockNumber = 0;
+                    queue->reportedLostFrame = false;
                     return RTPF_RET_REJECTED;
                 }
             }
@@ -648,7 +650,7 @@ int RtpvAddPacket(PRTP_VIDEO_QUEUE queue, PRTP_PACKET packet, int length, PRTPV_
                         queue->bufferDataPackets);
             }
         }
-        
+
         // We must either start on the current FEC block number for the current frame,
         // or block 0 of a new frame.
         uint8_t expectedFecBlockNumber = (queue->currentFrameNumber == nvPacket->frameIndex ? queue->multiFecCurrentBlockNumber : 0);
@@ -667,13 +669,16 @@ int RtpvAddPacket(PRTP_VIDEO_QUEUE queue, PRTP_PACKET packet, int length, PRTPV_
 
             // Notify the host of the loss of this frame
             if (!queue->reportedLostFrame) {
-                notifyFrameLostCtx(queue->depacketizerContext, queue->currentFrameNumber, false);
-                queue->reportedLostFrame = true;
+                notifyFrameLostCtx(queue->depacketizerContext, nvPacket->frameIndex, false);
             }
 
             // We dropped a block of this frame, so we must skip to the next one.
+            //
+            // NB: We reset reportedLostFrame here because we don't want to suppress
+            // the reporting of the _next_ frame if it's lost.
             queue->currentFrameNumber = nvPacket->frameIndex + 1;
             queue->multiFecCurrentBlockNumber = 0;
+            queue->reportedLostFrame = false;
             return RTPF_RET_REJECTED;
         }
 
@@ -779,18 +784,18 @@ int RtpvAddPacket(PRTP_VIDEO_QUEUE queue, PRTP_PACKET packet, int length, PRTPV_
             queue->receivedParityPackets++;
             LC_ASSERT(queue->receivedParityPackets <= queue->bufferParityPackets);
         }
-        
+
         // Try to submit this frame. If we haven't received enough packets,
         // this will fail and we'll keep waiting.
         if (reconstructFrame(queue) == 0) {
             // Stage the complete FEC block for use once reassembly is complete
             stageCompleteFecBlock(queue);
-            
+
             // stageCompleteFecBlock() should have consumed all pending FEC data
             LC_ASSERT(queue->pendingFecBlockList.head == NULL);
             LC_ASSERT(queue->pendingFecBlockList.tail == NULL);
             LC_ASSERT(queue->pendingFecBlockList.count == 0);
-            
+
             // If we're not yet at the last FEC block for this frame, move on to the next block.
             // Otherwise, the frame is complete and we can move on to the next frame.
             if (queue->multiFecCurrentBlockNumber < queue->multiFecLastBlockNumber) {

@@ -682,6 +682,7 @@ int LiSendMicrophoneControlCtx(PML_INPUT_STREAM_CONTEXT ctx, uint8_t control, in
 int LiSendTouchEventCtx(PML_INPUT_STREAM_CONTEXT ctx, uint8_t eventType, uint32_t pointerId, float x, float y, float pressureOrDistance, float contactAreaMajor, float contactAreaMinor, uint16_t rotation);
 int LiSendPenEventCtx(PML_INPUT_STREAM_CONTEXT ctx, uint8_t eventType, uint8_t toolType, uint8_t penButtons, float x, float y, float pressureOrDistance, float contactAreaMajor, float contactAreaMinor, uint16_t rotation, uint8_t tilt);
 int LiSendControllerArrivalEventCtx(PML_INPUT_STREAM_CONTEXT ctx, uint8_t controllerNumber, uint16_t activeGamepadMask, uint8_t type, uint32_t supportedButtonFlags, uint16_t capabilities);
+int LiSendControllerTouchEvent2Ctx(PML_INPUT_STREAM_CONTEXT ctx, uint8_t controllerNumber, uint8_t eventType, uint8_t touchpadIndex, uint32_t pointerId, float x, float y, float pressure);
 int LiSendControllerTouchEventCtx(PML_INPUT_STREAM_CONTEXT ctx, uint8_t controllerNumber, uint8_t eventType, uint32_t pointerId, float x, float y, float pressure);
 int LiSendControllerMotionEventCtx(PML_INPUT_STREAM_CONTEXT ctx, uint8_t controllerNumber, uint8_t motionType, float x, float y, float z);
 int LiSendControllerBatteryEventCtx(PML_INPUT_STREAM_CONTEXT ctx, uint8_t controllerNumber, uint8_t batteryState, uint8_t batteryPercentage);

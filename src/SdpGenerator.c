@@ -1,4 +1,5 @@
 #include "Limelight-internal.h"
+#include <inttypes.h>
 
 // Macros to redirect global access to context
 #define AppVersionQuad (ctx->AppVersionQuad)
@@ -328,7 +329,7 @@ static PSDP_OPTION getAttributesList(PML_CONNECTION_CONTEXT ctx, char*urlSafeAdd
                                          ML_FF_SESSION_ID_V1 |
                                          ML_FF_CLIPBOARD_TEXT |
                                          ML_FF_CLIPBOARD_IMAGE;
-        snprintf(payloadStr, sizeof(payloadStr), "%u", moonlightFeatureFlags);
+        snprintf(payloadStr, sizeof(payloadStr), "%" PRIu32, moonlightFeatureFlags);
         err |= addAttributeString(&optionHead, "x-ml-general.featureFlags", payloadStr);
 
         // New-style control stream encryption is low overhead, so we enable it any time it is supported
@@ -372,7 +373,7 @@ static PSDP_OPTION getAttributesList(PML_CONNECTION_CONTEXT ctx, char*urlSafeAdd
             EncryptionFeaturesEnabled |= SS_ENC_MICROPHONE;
         }
 
-        snprintf(payloadStr, sizeof(payloadStr), "%u", EncryptionFeaturesEnabled);
+        snprintf(payloadStr, sizeof(payloadStr), "%" PRIu32, EncryptionFeaturesEnabled);
         err |= addAttributeString(&optionHead, "x-ss-general.encryptionEnabled", payloadStr);
 
         // Enable YUV444 if requested

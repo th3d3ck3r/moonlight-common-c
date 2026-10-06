@@ -1269,6 +1269,9 @@ int LiSendKeyboardEvent2Ctx(PML_INPUT_STREAM_CONTEXT ctx, short keyCode, char ke
       // No fixups
       break;
     }
+
+        // MODIFIER_EXTENDED is a Sunshine extension
+        modifiers &= ~MODIFIER_EXTENDED;
   }
 
   holder->packet.keyboard.header.size =
@@ -1854,6 +1857,11 @@ int LiSendControllerArrivalEventCtx(PML_INPUT_STREAM_CONTEXT ctx, uint8_t contro
   // Sunshine supports up to 16 controllers
   controllerNumber %= MAX_GAMEPADS;
 
+    // Always set the older touchpad cap if we have dual touchpads
+    if (capabilities & LI_CCAP_DUAL_TOUCHPAD) {
+        capabilities |= LI_CCAP_TOUCHPAD;
+    }
+
   // The arrival event is only supported by Sunshine
   if (IS_SUNSHINE()) {
     holder = allocatePacketHolder(ctx, 0);
@@ -1897,7 +1905,7 @@ int LiSendControllerArrivalEvent(uint8_t controllerNumber,
     return LiSendControllerArrivalEventCtx(LiGetEffectiveInputContext(), controllerNumber, activeGamepadMask, type, supportedButtonFlags, capabilities);
 }
 
-int LiSendControllerTouchEventCtx(PML_INPUT_STREAM_CONTEXT ctx, uint8_t controllerNumber, uint8_t eventType,
+int LiSendControllerTouchEvent2Ctx(PML_INPUT_STREAM_CONTEXT ctx, uint8_t controllerNumber, uint8_t eventType, uint8_t touchpadIndex,
                                uint32_t pointerId, float x, float y,
                                float pressure) {
   PPACKET_HOLDER holder;
@@ -1933,8 +1941,8 @@ int LiSendControllerTouchEventCtx(PML_INPUT_STREAM_CONTEXT ctx, uint8_t controll
   holder->packet.controllerTouch.header.magic = LE32(SS_CONTROLLER_TOUCH_MAGIC);
   holder->packet.controllerTouch.controllerNumber = controllerNumber;
   holder->packet.controllerTouch.eventType = eventType;
-  memset(holder->packet.controllerTouch.zero, 0,
-         sizeof(holder->packet.controllerTouch.zero));
+    memset(&holder->packet.controllerTouch.zero, 0, sizeof(holder->packet.controllerTouch.zero));
+    holder->packet.controllerTouch.touchpadIndex = touchpadIndex;
   holder->packet.controllerTouch.pointerId = LE32(pointerId);
   floatToNetfloat(x, holder->packet.controllerTouch.x);
   floatToNetfloat(y, holder->packet.controllerTouch.y);
@@ -1948,6 +1956,14 @@ int LiSendControllerTouchEventCtx(PML_INPUT_STREAM_CONTEXT ctx, uint8_t controll
   }
 
   return err;
+}
+
+int LiSendControllerTouchEventCtx(PML_INPUT_STREAM_CONTEXT ctx, uint8_t controllerNumber, uint8_t eventType, uint32_t pointerId, float x, float y, float pressure) {
+    return LiSendControllerTouchEvent2Ctx(ctx, controllerNumber, eventType, 0, pointerId, x, y, pressure);
+}
+
+int LiSendControllerTouchEvent2(uint8_t controllerNumber, uint8_t eventType, uint8_t touchpadIndex, uint32_t pointerId, float x, float y, float pressure) {
+    return LiSendControllerTouchEvent2Ctx(LiGetEffectiveInputContext(), controllerNumber, eventType, touchpadIndex, pointerId, x, y, pressure);
 }
 
 int LiSendControllerTouchEvent(uint8_t controllerNumber, uint8_t eventType,

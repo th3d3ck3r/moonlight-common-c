@@ -1,5 +1,7 @@
 #include "Limelight-internal.h"
 
+#include <rs.h>
+
 #if defined(LC_DEBUG) && !defined(LC_FUZZING)
 // This enables FEC validation mode with a synthetic drop
 // and recovered packet checks vs the original input. It
@@ -59,8 +61,7 @@ void RtpaInitializeQueue(PRTP_AUDIO_QUEUE queue) {
   // constant and known in advance.
   const unsigned char parity[] = {0x77, 0x40, 0x38, 0x0e,
                                   0xc7, 0xa7, 0x0d, 0x6c};
-  memcpy(&queue->rs->m[16], parity, sizeof(parity));
-  memcpy(queue->rs->parity, parity, sizeof(parity));
+  memcpy(queue->rs->p, parity, sizeof(parity));
 }
 
 static void validateFecBlockState(PRTP_AUDIO_QUEUE queue) {
